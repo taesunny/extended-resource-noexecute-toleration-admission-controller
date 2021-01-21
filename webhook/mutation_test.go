@@ -207,8 +207,11 @@ func TestGetTaintsToAdd(t *testing.T) {
 		tolerationsToAdd := getTolerationsToAdd(test.requestedPod)
 
 		if test.expectedTolerationsToAdd.Equal(*tolerationsToAdd) {
-			println(test.expectedTolerationsToAdd.String())
-			println((*tolerationsToAdd).String())
+			t.Logf("Test (%s) Succeed", test.description)
+		} else {
+			println("expected: ", test.expectedTolerationsToAdd.String())
+			println("return of function: ", (*tolerationsToAdd).String())
+			println()
 			t.Errorf("Test (%s) Failed", test.description)
 		}
 	}

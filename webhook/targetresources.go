@@ -18,10 +18,10 @@ func (i *ArrayFlags) Set(value string) error {
 	return nil
 }
 
-var targetResourcesSet *mapset.Set
+var targetResourcesSet mapset.Set
 
 func SetTargetResourcesSet(targetResources ArrayFlags) {
-	targetResourcesSet := mapset.NewSet()
+	targetResourcesSet = mapset.NewSet()
 
 	for _, resource := range targetResources {
 		targetResourcesSet.Add(resource)
@@ -29,5 +29,5 @@ func SetTargetResourcesSet(targetResources ArrayFlags) {
 }
 
 func GetTargetResourcesSet() *mapset.Set {
-	return targetResourcesSet
+	return &targetResourcesSet
 }

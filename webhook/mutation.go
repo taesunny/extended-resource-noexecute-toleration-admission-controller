@@ -187,7 +187,7 @@ func getTolerationObjects(tolerationsToAdd *mapset.Set) []corev1.Toleration {
 
 func getTolerationsToAdd(pod corev1.Pod) *mapset.Set {
 	taintsSetToAdd := mapset.NewSet()
-	targetResourcesSet = GetTargetResourcesSet()
+	targetResourcesSet := GetTargetResourcesSet()
 
 	for _, container := range pod.Spec.Containers {
 		for resourceName := range container.Resources.Requests {
