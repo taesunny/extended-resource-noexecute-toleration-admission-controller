@@ -12,6 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/klog"
+
+	mapset "github.com/deckarep/golang-set"
 )
 
 const (
@@ -103,9 +105,9 @@ func mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		}
 	}
 
-	taintsToAdd := getTaintsToAdd(pod)
+	tolerationsToAdd := getTolerationsToAdd(pod)
 
-	if len(taintsToAdd) == 0 {
+	if (*tolerationsToAdd).Cardinality() == 0 {
 		klog.Infof("No need to mutate, Pod name: %s/%s", pod.Name, pod.Namespace)
 
 		return &v1beta1.AdmissionResponse{
@@ -113,7 +115,7 @@ func mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		}
 	}
 
-	patchData, err := getTolerationsPatchData(pod, taintsToAdd)
+	patchData, err := getTolerationsPatchData(pod, tolerationsToAdd)
 
 	if err != nil {
 		klog.Errorf("Could not make patch data: %s", err)
@@ -135,18 +137,20 @@ func mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	}
 }
 
-func getTolerationsPatchData(pod corev1.Pod, taintsToAdd []string) ([]byte, error) {
+func getTolerationsPatchData(pod corev1.Pod, tolerationsToAdd *mapset.Set) ([]byte, error) {
 	var patch []patchOps
 
 	if pod.Spec.Tolerations == nil {
 		patch = append(patch, patchOps{
 			Op:    "add",
 			Path:  "/spec/tolerations",
-			Value: getTolerationObjects(taintsToAdd),
+			Value: getTolerationObjects(tolerationsToAdd),
 		})
 	} else {
-		for _, taint := range taintsToAdd {
-			pod.Spec.Tolerations = append(pod.Spec.Tolerations, getTolerationObject(taint))
+		for v := range (*tolerationsToAdd).Iter() {
+			if toleration, ok := v.(string); ok {
+				pod.Spec.Tolerations = append(pod.Spec.Tolerations, getTolerationObject(toleration))
+			}
 		}
 
 		patch = append(patch, patchOps{
@@ -169,22 +173,25 @@ func getTolerationObject(key string) corev1.Toleration {
 	return toleration
 }
 
-func getTolerationObjects(keys []string) []corev1.Toleration {
+func getTolerationObjects(tolerationsToAdd *mapset.Set) []corev1.Toleration {
 	var tolerations []corev1.Toleration
 
-	for _, key := range keys {
-		tolerations = append(tolerations, getTolerationObject(key))
+	for v := range (*tolerationsToAdd).Iter() {
+		if toleration, ok := v.(string); ok {
+			tolerations = append(tolerations, getTolerationObject(toleration))
+		}
 	}
 
 	return tolerations
 }
 
-func getTaintsToAdd(pod corev1.Pod) []string {
-	taintsSetToAdd := NewSet()
+func getTolerationsToAdd(pod corev1.Pod) *mapset.Set {
+	taintsSetToAdd := mapset.NewSet()
+	targetResourcesSet = GetTargetResourcesSet()
 
 	for _, container := range pod.Spec.Containers {
 		for resourceName := range container.Resources.Requests {
-			if targetResourcesSet.Contains(string(resourceName)) {
+			if (*targetResourcesSet).Contains(string(resourceName)) {
 				taintsSetToAdd.Add(string(resourceName))
 			}
 		}
@@ -192,11 +199,11 @@ func getTaintsToAdd(pod corev1.Pod) []string {
 
 	for _, container := range pod.Spec.InitContainers {
 		for resourceName := range container.Resources.Requests {
-			if targetResourcesSet.Contains(string(resourceName)) {
+			if (*targetResourcesSet).Contains(string(resourceName)) {
 				taintsSetToAdd.Add(string(resourceName))
 			}
 		}
 	}
 
-	return taintsSetToAdd.GetStringArr()
+	return &taintsSetToAdd
 }
